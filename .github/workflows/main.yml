@@ -12,45 +12,77 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y wireguard
 
-      - name: نصب wg-easy
+      - name: فعال کردن IP Forwarding
         run: |
-          docker run -d \
-            --name=wg-easy \
-            -e WG_HOST=$(curl -s ifconfig.me) \
-            -e PASSWORD=Admin123! \
-            -p 51820:51820/udp \
-            -p 51821:51821/tcp \
-            -v ~/wg-data:/etc/wireguard \
-            --cap-add=NET_ADMIN \
-            --cap-add=SYS_MODULE \
-            weejewel/wg-easy
+          sudo sysctl -w net.ipv4.ip_forward=1
+          sudo sysctl -w net.ipv6.conf.all.forwarding=1
 
-      - name: صبر برای آماده شدن
-        run: sleep 20
+      - name: ساخت کلیدهای سرور
+        run: |
+          cd /etc/wireguard
+          sudo umask 077
+          sudo wg genkey | sudo tee privatekey | sudo wg pubkey | sudo tee publickey
+          sudo chmod 600 privatekey
+
+      - name: ساخت کلیدهای کلاینت
+        run: |
+          cd /etc/wireguard
+          sudo wg genkey | sudo tee client_privatekey | sudo wg pubkey | sudo tee client_publickey
+          sudo chmod 600 client_privatekey
+
+      - name: ساخت فایل کانفیگ سرور
+        run: |
+          IP=$(curl -s ifconfig.me)
+          SERVER_PRIVATE_KEY=$(sudo cat /etc/wireguard/privatekey)
+          CLIENT_PUBLIC_KEY=$(sudo cat /etc/wireguard/client_publickey)
+          
+          sudo tee /etc/wireguard/wg0.conf > /dev/null <<EOF
+[Interface]
+PrivateKey = $SERVER_PRIVATE_KEY
+Address = 10.0.0.1/24
+ListenPort = 51820
+PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+
+[Peer]
+PublicKey = $CLIENT_PUBLIC_KEY
+AllowedIPs = 10.0.0.2/32
+EOF
+
+      - name: راه‌اندازی WireGuard
+        run: |
+          sudo systemctl enable wg-quick@wg0
+          sudo wg-quick up wg0
+          sudo systemctl status wg-quick@wg0
+
+      - name: نمایش کانفیگ کلاینت
+        run: |
+          IP=$(curl -s ifconfig.me)
+          SERVER_PUBLIC_KEY=$(sudo cat /etc/wireguard/publickey)
+          CLIENT_PRIVATE_KEY=$(sudo cat /etc/wireguard/client_privatekey)
+          
+          echo "=========================================="
+          echo "کانفیگ کلاینت - کد زیر را کامل کپی کن"
+          echo "=========================================="
+          echo ""
+          echo "[Interface]"
+          echo "PrivateKey = $CLIENT_PRIVATE_KEY"
+          echo "Address = 10.0.0.2/24"
+          echo "DNS = 1.1.1.1"
+          echo ""
+          echo "[Peer]"
+          echo "PublicKey = $SERVER_PUBLIC_KEY"
+          echo "AllowedIPs = 0.0.0.0/0"
+          echo "Endpoint = $IP:51820"
+          echo "PersistentKeepalive = 25"
+          echo ""
+          echo "=========================================="
 
       - name: نمایش آی‌پی سرور
         run: |
           IP=$(curl -s ifconfig.me)
           echo "آی‌پی سرور: $IP"
           echo "پورت: 51820"
-          echo "رمز مدیریت: Admin123!"
-
-      - name: اضافه کردن کلاینت با استفاده از داکر
-        run: |
-          echo "اضافه کردن کلاینت جدید..."
-          docker exec wg-easy sh -c "echo 'yes' | wg-easy add-client myphone"
-
-      - name: خواندن فایل کانفیگ کلاینت
-        run: |
-          echo "=== کانفیگ کلاینت === "
-          cat ~/wg-data/wg0.conf
-          echo "====================="
-
-      - name: بررسی فایل کلاینت
-        run: |
-          echo "=== فایل کلاینت myphone ==="
-          docker exec wg-easy cat /etc/wireguard/myphone.conf 2>/dev/null || echo "فایل کلاینت پیدا نشد"
-          echo ""
 
       - name: نگهداری اتصال
         run: sleep 21600
