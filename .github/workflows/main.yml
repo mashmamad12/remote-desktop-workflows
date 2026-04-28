@@ -12,7 +12,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y wireguard
 
-      - name: نصب و اجرای wg-easy
+      - name: نصب wg-easy
         run: |
           docker run -d \
             --name=wg-easy \
@@ -20,39 +20,36 @@ jobs:
             -e PASSWORD=Admin123! \
             -p 51820:51820/udp \
             -p 51821:51821/tcp \
+            -v ~/wg-data:/etc/wireguard \
             --cap-add=NET_ADMIN \
             --cap-add=SYS_MODULE \
             weejewel/wg-easy
 
-      - name: صبر برای بالا آمدن سرویس
-        run: sleep 15
+      - name: صبر برای آماده شدن
+        run: sleep 20
 
       - name: نمایش آی‌پی سرور
         run: |
           IP=$(curl -s ifconfig.me)
           echo "آی‌پی سرور: $IP"
-          echo "پورت UDP: 51820"
+          echo "پورت: 51820"
           echo "رمز مدیریت: Admin123!"
 
-      - name: بررسی فایل کانفیگ سرور
+      - name: اضافه کردن کلاینت با استفاده از داکر
         run: |
-          echo "=== بررسی مستقیم فایل کانفیگ ==="
-          docker exec wg-easy cat /etc/wireguard/wg0.conf 2>/dev/null || echo "فایل هنوز ساخته نشده"
-          echo ""
+          echo "اضافه کردن کلاینت جدید..."
+          docker exec wg-easy sh -c "echo 'yes' | wg-easy add-client myphone"
 
-      - name: اضافه کردن کلاینت اول
+      - name: خواندن فایل کانفیگ کلاینت
         run: |
-          echo "=== اضافه کردن کلاینت جدید ==="
-          curl -s -X POST \
-            -H "Content-Type: application/json" \
-            -d '{"name":"myphone"}' \
-            http://localhost:51821/api/wireguard/client
-          echo ""
+          echo "=== کانفیگ کلاینت === "
+          cat ~/wg-data/wg0.conf
+          echo "====================="
 
-      - name: گرفتن کانفیگ کلاینت
+      - name: بررسی فایل کلاینت
         run: |
-          echo "=== کانفیگ کلاینت myphone ==="
-          curl -s http://localhost:51821/api/wireguard/client/myphone
+          echo "=== فایل کلاینت myphone ==="
+          docker exec wg-easy cat /etc/wireguard/myphone.conf 2>/dev/null || echo "فایل کلاینت پیدا نشد"
           echo ""
 
       - name: نگهداری اتصال
