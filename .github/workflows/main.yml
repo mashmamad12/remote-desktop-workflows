@@ -33,7 +33,7 @@ jobs:
         run: |
           sleep 5
           echo "=== کانفیگ کلاینت ==="
-          curl -s http://localhost:51821/api/wireguard/client/
+          curl -s -u "admin:Admin123!" http://localhost:51821/api/wireguard/client/
           echo ""
           echo "==================="
 
