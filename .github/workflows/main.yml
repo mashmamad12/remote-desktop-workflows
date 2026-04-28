@@ -17,39 +17,38 @@ jobs:
           sudo sysctl -w net.ipv4.ip_forward=1
           sudo sysctl -w net.ipv6.conf.all.forwarding=1
 
-      - name: ساخت کلیدهای سرور
+      - name: ساخت کلیدها و کانفیگ
         run: |
+          # ساخت دایرکتوری
           sudo mkdir -p /etc/wireguard
           cd /etc/wireguard
+          
+          # ساخت کلید سرور
           sudo umask 077
           sudo wg genkey | sudo tee privatekey | sudo wg pubkey | sudo tee publickey
-          sudo chmod 600 privatekey
-
-      - name: ساخت کلیدهای کلاینت
-        run: |
-          cd /etc/wireguard
-          sudo umask 077
-          sudo wg genkey | sudo tee client_privatekey | sudo wg pubkey | sudo tee client_publickey
-          sudo chmod 600 client_privatekey
-
-      - name: ساخت فایل کانفیگ سرور
-        run: |
-          IP=$(curl -s ifconfig.me)
-          SERVER_PRIVATE_KEY=$(sudo cat /etc/wireguard/privatekey)
-          CLIENT_PUBLIC_KEY=$(sudo cat /etc/wireguard/client_publickey)
           
-          sudo bash -c "cat > /etc/wireguard/wg0.conf" <<EOT
-[Interface]
-PrivateKey = $SERVER_PRIVATE_KEY
-Address = 10.0.0.1/24
-ListenPort = 51820
-PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
-
-[Peer]
-PublicKey = $CLIENT_PUBLIC_KEY
-AllowedIPs = 10.0.0.2/32
-EOT
+          # ساخت کلید کلاینت
+          sudo wg genkey | sudo tee client_privatekey | sudo wg pubkey | sudo tee client_publickey
+          
+          # ذخیره متغیرها
+          IP=$(curl -s ifconfig.me)
+          SERVER_PRIVATE_KEY=$(sudo cat privatekey)
+          CLIENT_PUBLIC_KEY=$(sudo cat client_publickey)
+          
+          # نوشتن فایل کانفیگ (خط به خط)
+          sudo bash -c "echo '[Interface]' > wg0.conf"
+          sudo bash -c "echo 'PrivateKey = $SERVER_PRIVATE_KEY' >> wg0.conf"
+          sudo bash -c "echo 'Address = 10.0.0.1/24' >> wg0.conf"
+          sudo bash -c "echo 'ListenPort = 51820' >> wg0.conf"
+          sudo bash -c "echo 'PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE' >> wg0.conf"
+          sudo bash -c "echo 'PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE' >> wg0.conf"
+          sudo bash -c "echo '' >> wg0.conf"
+          sudo bash -c "echo '[Peer]' >> wg0.conf"
+          sudo bash -c "echo 'PublicKey = $CLIENT_PUBLIC_KEY' >> wg0.conf"
+          sudo bash -c "echo 'AllowedIPs = 10.0.0.2/32' >> wg0.conf"
+          
+          # ذخیره آی‌پی برای مرحله بعد
+          echo "SERVER_IP=$IP" >> $GITHUB_ENV
 
       - name: راه‌اندازی WireGuard
         run: |
@@ -58,7 +57,6 @@ EOT
 
       - name: نمایش کانفیگ کلاینت
         run: |
-          IP=$(curl -s ifconfig.me)
           SERVER_PUBLIC_KEY=$(sudo cat /etc/wireguard/publickey)
           CLIENT_PRIVATE_KEY=$(sudo cat /etc/wireguard/client_privatekey)
           
@@ -74,12 +72,12 @@ EOT
           echo "[Peer]"
           echo "PublicKey = $SERVER_PUBLIC_KEY"
           echo "AllowedIPs = 0.0.0.0/0"
-          echo "Endpoint = $IP:51820"
+          echo "Endpoint = ${{ env.SERVER_IP }}:51820"
           echo "PersistentKeepalive = 25"
           echo ""
           echo "=========================================="
           echo ""
-          echo "آی‌پی سرور: $IP"
+          echo "آی‌پی سرور: ${{ env.SERVER_IP }}"
           echo "پورت: 51820"
 
       - name: نگهداری اتصال
