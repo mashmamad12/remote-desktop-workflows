@@ -1,0 +1,32 @@
+name: 'WireGuard VPN'
+
+on:
+  workflow_dispatch:
+
+jobs:
+  vpn:
+    runs-on: ubuntu-latest
+    steps:
+      - name: نصب WireGuard
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wireguard
+
+      - name: نصب wg-easy
+        run: |
+          docker run -d \
+            --name=wg-easy \
+            -e WG_HOST=$(curl -s ifconfig.me) \
+            -e PASSWORD=Admin123! \
+            -p 51820:51820/udp \
+            -p 51821:51821/tcp \
+            --cap-add=NET_ADMIN \
+            --cap-add=SYS_MODULE \
+            weejewel/wg-easy
+
+      - name: نمایش آدرس
+        run: |
+          echo "آی‌پی سرور: $(curl -s ifconfig.me)"
+
+      - name: نگهداری
+        run: sleep 21600
