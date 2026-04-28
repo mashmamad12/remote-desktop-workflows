@@ -24,9 +24,18 @@ jobs:
             --cap-add=SYS_MODULE \
             weejewel/wg-easy
 
-      - name: نمایش آدرس
+      - name: نمایش آی‌پی
         run: |
-          echo "آی‌پی سرور: $(curl -s ifconfig.me)"
+          IP=$(curl -s ifconfig.me)
+          echo "آی‌پی سرور: $IP"
 
-      - name: نگهداری
+      - name: گرفتن کانفیگ کلاینت
+        run: |
+          sleep 5
+          echo "=== کانفیگ کلاینت ==="
+          curl -s http://localhost:51821/api/wireguard/client/
+          echo ""
+          echo "==================="
+
+      - name: نگهداری اتصال
         run: sleep 21600
