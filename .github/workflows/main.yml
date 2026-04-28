@@ -19,6 +19,7 @@ jobs:
 
       - name: ساخت کلیدهای سرور
         run: |
+          sudo mkdir -p /etc/wireguard
           cd /etc/wireguard
           sudo umask 077
           sudo wg genkey | sudo tee privatekey | sudo wg pubkey | sudo tee publickey
@@ -27,6 +28,7 @@ jobs:
       - name: ساخت کلیدهای کلاینت
         run: |
           cd /etc/wireguard
+          sudo umask 077
           sudo wg genkey | sudo tee client_privatekey | sudo wg pubkey | sudo tee client_publickey
           sudo chmod 600 client_privatekey
 
@@ -36,7 +38,7 @@ jobs:
           SERVER_PRIVATE_KEY=$(sudo cat /etc/wireguard/privatekey)
           CLIENT_PUBLIC_KEY=$(sudo cat /etc/wireguard/client_publickey)
           
-          sudo tee /etc/wireguard/wg0.conf > /dev/null <<EOF
+          sudo bash -c "cat > /etc/wireguard/wg0.conf" <<EOT
 [Interface]
 PrivateKey = $SERVER_PRIVATE_KEY
 Address = 10.0.0.1/24
@@ -47,13 +49,12 @@ PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING 
 [Peer]
 PublicKey = $CLIENT_PUBLIC_KEY
 AllowedIPs = 10.0.0.2/32
-EOF
+EOT
 
       - name: راه‌اندازی WireGuard
         run: |
-          sudo systemctl enable wg-quick@wg0
           sudo wg-quick up wg0
-          sudo systemctl status wg-quick@wg0
+          sudo wg show
 
       - name: نمایش کانفیگ کلاینت
         run: |
@@ -77,10 +78,7 @@ EOF
           echo "PersistentKeepalive = 25"
           echo ""
           echo "=========================================="
-
-      - name: نمایش آی‌پی سرور
-        run: |
-          IP=$(curl -s ifconfig.me)
+          echo ""
           echo "آی‌پی سرور: $IP"
           echo "پورت: 51820"
 
