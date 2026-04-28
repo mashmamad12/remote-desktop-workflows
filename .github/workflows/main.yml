@@ -12,7 +12,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y wireguard
 
-      - name: نصب wg-easy
+      - name: نصب و اجرای wg-easy
         run: |
           docker run -d \
             --name=wg-easy \
@@ -24,18 +24,36 @@ jobs:
             --cap-add=SYS_MODULE \
             weejewel/wg-easy
 
-      - name: نمایش آی‌پی
+      - name: صبر برای بالا آمدن سرویس
+        run: sleep 15
+
+      - name: نمایش آی‌پی سرور
         run: |
           IP=$(curl -s ifconfig.me)
           echo "آی‌پی سرور: $IP"
+          echo "پورت UDP: 51820"
+          echo "رمز مدیریت: Admin123!"
+
+      - name: بررسی فایل کانفیگ سرور
+        run: |
+          echo "=== بررسی مستقیم فایل کانفیگ ==="
+          docker exec wg-easy cat /etc/wireguard/wg0.conf 2>/dev/null || echo "فایل هنوز ساخته نشده"
+          echo ""
+
+      - name: اضافه کردن کلاینت اول
+        run: |
+          echo "=== اضافه کردن کلاینت جدید ==="
+          curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"name":"myphone"}' \
+            http://localhost:51821/api/wireguard/client
+          echo ""
 
       - name: گرفتن کانفیگ کلاینت
         run: |
-          sleep 5
-          echo "=== کانفیگ کلاینت ==="
-          curl -s -u "admin:Admin123!" http://localhost:51821/api/wireguard/client/
+          echo "=== کانفیگ کلاینت myphone ==="
+          curl -s http://localhost:51821/api/wireguard/client/myphone
           echo ""
-          echo "==================="
 
       - name: نگهداری اتصال
         run: sleep 21600
